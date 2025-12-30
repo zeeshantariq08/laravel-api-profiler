@@ -1,0 +1,38 @@
+@extends('laravel-api-profiler::layout')
+
+@section('content')
+    <h1 class="text-2xl font-bold mb-4">Request Timeline</h1>
+
+    <div class="space-y-4">
+        @foreach($timeline as $item)
+            <div class="flex items-center space-x-2">
+                <div class="w-48 font-mono">{{ $item['type'] }}: {{ $item['name'] }}</div>
+                <div class="flex-1 bg-gray-200 dark:bg-gray-700 h-4 rounded relative">
+                    <div class="h-4 rounded"
+                         :class="{
+                    'bg-blue-500': '{{ $item['type'] }}' === 'Controller',
+                    'bg-green-500': '{{ $item['type'] }}' === 'Middleware',
+                    'bg-red-500': '{{ $item['type'] }}' === 'DB',
+                    'bg-yellow-500': '{{ $item['type'] }}' === 'HTTP'
+                 }"
+                         style="width: {{ ($item['duration']/$request->duration_ms)*100 }}%"></div>
+                </div>
+                <div class="font-mono">{{ round($item['duration'],2) }} ms</div>
+            </div>
+        @endforeach
+    </div>
+
+    <h2 class="text-xl font-bold mt-6 mb-2">Queries</h2>
+    <ul class="list-disc pl-6">
+        @foreach($request->queries as $query)
+            <li class="font-mono">{{ $query['sql'] }} — {{ round($query['time'],2) }} ms</li>
+        @endforeach
+    </ul>
+
+    <h2 class="text-xl font-bold mt-6 mb-2">HTTP Calls</h2>
+    <ul class="list-disc pl-6">
+        @foreach($request->http_calls as $http)
+            <li class="font-mono">{{ $http['url'] }} — {{ round($http['duration'],2) }} ms</li>
+        @endforeach
+    </ul>
+@endsection

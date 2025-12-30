@@ -1,0 +1,18 @@
+{
+    "name": "zeeshantariq/laravel-api-profiler",
+    "description": "X-ray profiler for every Laravel API request",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "ZeeshanTariq\\LaravelApiProfiler\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ZeeshanTariq\\LaravelApiProfiler\\LaravelApiProfilerServiceProvider"
+            ]
+        }
+    }
+}

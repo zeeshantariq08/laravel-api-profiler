@@ -1,0 +1,48 @@
+<?php
+
+namespace ZeeshanTariq\LaravelApiProfiler\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class ApiProfilerLog extends Model
+{
+    protected $table = 'api_profiler_logs';
+
+    protected $fillable = [
+        'request_id',
+        'method',
+        'url',
+        'status_code',
+        'duration_ms',
+        'db_ms',
+        'http_ms',
+        'queries',
+        'memory_peak',
+        'slow',
+        'bottleneck',
+        'timings',
+        'n_plus_one',
+    ];
+
+    protected $casts = [
+        'timings' => 'array',
+        'n_plus_one' => 'array',
+        'slow' => 'boolean',
+    ];
+
+    public static function routeStats()
+    {
+        return self::selectRaw('
+        url,
+        COUNT(*) as calls,
+        AVG(duration_ms) as avg_ms,
+        SUM(slow = 1) / COUNT(*) * 100 as slow_pct,
+        AVG(db_ms) as avg_db,
+        AVG(http_ms) as avg_http
+    ')
+            ->groupBy('url')
+            ->orderByDesc('avg_ms')
+            ->get();
+    }
+
+}
