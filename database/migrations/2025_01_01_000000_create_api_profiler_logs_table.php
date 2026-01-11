@@ -24,6 +24,9 @@ return new class extends Migration
             $table->json('timings')->nullable();     // middleware/controller/db/http/response
             $table->json('n_plus_one')->nullable();  // detected N+1 queries
             $table->json('timeline')->nullable();
+            $table->json('http_calls')->nullable();
+            $table->json('queries_list')->nullable(); // list of SQL queries executed
+
             $table->timestamps();
         });
     }

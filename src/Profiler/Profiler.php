@@ -68,21 +68,23 @@ class Profiler
         static::$current->queriesList[] = $normalized;
     }
 
-
-
-    public static function addHttp(float $time): void
-    {
-        if (! static::$current) return;
-
-        static::$current->httpTime += $time;
-        static::$current->httpCalls++;
-    }
-
     public static function addMemory(int $bytes): void
     {
         if (! static::$current) return;
 
         static::$current->memory = $bytes;
+    }
+
+    public static function addHttp(string $url, float $time): void
+    {
+        if (!static::$current) return;
+
+        static::$current->httpTime += $time;
+        static::$current->httpCalls++;
+        static::$current->httpCallsList[] = [
+            'url' => $url,
+            'duration_ms' => $time,
+        ];
     }
 
 }

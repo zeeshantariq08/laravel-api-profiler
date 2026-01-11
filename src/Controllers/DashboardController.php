@@ -32,26 +32,42 @@ class DashboardController extends Controller
 
     public function show(string $requestId)
     {
-        $request = \ZeeshanTariq\LaravelApiProfiler\Models\ApiProfilerLog::where('request_id', $requestId)
-            ->firstOrFail();
+        $request = ApiProfilerLog::where('request_id', $requestId)->firstOrFail();
 
-        // Prepare timeline
+        $timelineEntries = is_array($request->timeline) ? $request->timeline : (json_decode($request->timeline, true) ?? []);
+
+        $queries = [];
+        if (!empty($request->queries_list)) {
+            foreach ($request->queries_list as $q) {
+                $queries[] = [
+                    'type' => 'DB Query',
+                    'name' => $q['sql'] ?? $q,   // depending on how you store it
+                    'duration' => $q['time_ms'] ?? 0
+                ];
+            }
+        }
+
+        $httpCalls = [];
+        $httpCallsData = $request->http_calls_list ?? $request->http_calls ?? [];
+        if (!empty($httpCallsData)) {
+            foreach ($httpCallsData as $h) {
+                $httpCalls[] = [
+                    'type' => 'HTTP Call',
+                    'name' => $h['url'] ?? $h,
+                    'duration' => $h['duration_ms'] ?? 0
+                ];
+            }
+        }
+
         $timeline = array_merge(
-            $request->queries->map(fn($q) => [
-                'type' => 'DB Query',
-                'name' => $q->sql,
-                'duration' => $q->time_ms
-            ])->toArray(),
-            $request->http_calls->map(fn($h) => [
-                'type' => 'HTTP Call',
-                'name' => $h->url,
-                'duration' => $h->duration_ms
-            ])->toArray(),
+            $queries,
+            $httpCalls,
+            $timelineEntries,
             [
                 [
                     'type' => 'Middleware/Controller',
                     'name' => 'Application Code',
-                    'duration' => $request->duration_ms - $request->db_time_ms - $request->http_time_ms
+                    'duration' => $request->duration_ms - ($request->db_ms ?? 0) - ($request->http_ms ?? 0)
                 ]
             ]
         );
@@ -59,8 +75,11 @@ class DashboardController extends Controller
         return view('laravel-api-profiler::request-detail', [
             'request' => $request,
             'timeline' => $timeline,
+            'queriesList' => $request->queries_list ?? [],
+            'httpCalls' => $request->http_calls ?? [],
         ]);
     }
+
     public function routes()
     {
         $routes = \ZeeshanTariq\LaravelApiProfiler\Models\ApiProfilerLog::selectRaw("
@@ -78,37 +97,81 @@ class DashboardController extends Controller
     }
     public function alerts()
     {
-        $alerts = \ZeeshanTariq\LaravelApiProfiler\Models\ApiProfilerLog::all()->map(function($log) {
-            $list = [];
+        $alertRequestIds = ApiProfilerAlert::distinct()
+            ->pluck('request_id')
+            ->toArray();
 
-            if ($log->duration_ms > 500) $list[] = 'Slow Request';
-            if ($log->memory_peak > 128*1024*1024) $list[] = 'High Memory';
-            if (!empty($log->n_plus_one)) $list[] = 'N+1 Detected';
+        $logsWithAlerts = ApiProfilerLog::whereIn('request_id', $alertRequestIds)
+            ->latest()
+            ->get()
+            ->map(function ($log) {
+                $alertRecords = ApiProfilerAlert::where('request_id', $log->request_id)->get();
 
-            $log->alerts = $list;
-            return $log;
-        })->filter(fn($log) => count($log->alerts) > 0);
+                $alertTypes = $alertRecords->map(function ($alert) {
+                    return match ($alert->type) {
+                        'slow_request' => 'Slow Request',
+                        'high_memory' => 'High Memory',
+                        'n_plus_one' => 'N+1 Detected',
+                        default => ucfirst(str_replace('_', ' ', $alert->type))
+                    };
+                })->unique()->values()->toArray();
+
+                $log->alerts = $alertTypes;
+                $log->alert_count = count($alertTypes);
+
+                return $log;
+            });
+
+        $logsWithIssues = ApiProfilerLog::where(function ($query) {
+            $query->where('duration_ms', '>', config('api-profiler.slow_request_threshold_ms', 500))
+                ->orWhere('memory_peak', '>', config('api-profiler.high_memory_bytes', 128 * 1024 * 1024))
+                ->orWhereNotNull('n_plus_one');
+        })
+            ->whereNotIn('request_id', $alertRequestIds)
+            ->latest()
+            ->limit(20)
+            ->get()
+            ->map(function ($log) {
+                $list = [];
+                if ($log->duration_ms > config('api-profiler.slow_request_threshold_ms', 500)) {
+                    $list[] = 'Slow Request';
+                }
+                if ($log->memory_peak > config('api-profiler.high_memory_bytes', 128 * 1024 * 1024)) {
+                    $list[] = 'High Memory';
+                }
+                if (!empty($log->n_plus_one)) {
+                    $list[] = 'N+1 Detected';
+                }
+                $log->alerts = $list;
+                $log->alert_count = count($list);
+                return $log;
+            })
+            ->filter(fn($log) => count($log->alerts) > 0);
+
+        $alerts = $logsWithAlerts->concat($logsWithIssues)
+            ->sortByDesc('created_at')
+            ->values();
 
         return view('laravel-api-profiler::alerts', compact('alerts'));
     }
     public function dashboard() {
         $timelineLabels = $timelineDb = $timelineHttp = $timelineMiddleware = $timelineController = [];
 
-        // Prepare last 10 requests timeline data
         $requests = ApiProfilerLog::latest()->limit(10)->get();
         foreach($requests as $req){
-            $timelineLabels[] = substr($req->url,0,20);
-            $timelineDb[] = $req->db_time_ms;
-            $timelineHttp[] = $req->http_time_ms;
-            $timelineMiddleware[] = $req->middleware_time_ms;
-            $timelineController[] = $req->controller_time_ms;
+            $timelineLabels[] = substr($req->url, 0, 20) . (strlen($req->url) > 20 ? '...' : '');
+            $timelineDb[] = $req->db_time_ms ?? 0;
+            $timelineHttp[] = $req->http_time_ms ?? 0;
+            $timelineMiddleware[] = $req->middleware_time_ms ?? 0;
+            $timelineController[] = $req->controller_time_ms ?? 0;
         }
 
         $routeLabels = $routeDurations = [];
-        $routes = ApiProfilerLog::select('url')->distinct()->get();
+        $routes = ApiProfilerLog::select('url')->distinct()->limit(10)->get();
         foreach($routes as $route){
-            $routeLabels[] = $route->url;
-            $routeDurations[] = ApiProfilerLog::where('url',$route->url)->avg('duration_ms');
+            $routeLabels[] = substr($route->url, 0, 30) . (strlen($route->url) > 30 ? '...' : '');
+            $avgDuration = ApiProfilerLog::where('url', $route->url)->avg('duration_ms');
+            $routeDurations[] = round($avgDuration ?? 0, 2);
         }
 
         return view('laravel-api-profiler::dashboard', [

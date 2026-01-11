@@ -3,3 +3,6 @@
 /.idea
 .env
 *.log
+*.php~
+*.bak
+composer.lock

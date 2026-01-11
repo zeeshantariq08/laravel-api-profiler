@@ -1,8 +1,31 @@
 {
     "name": "zeeshantariq/laravel-api-profiler",
-    "description": "X-ray profiler for every Laravel API request",
+    "description": "Production-grade performance observability for Laravel APIs - track database queries, external API calls, memory usage, and execution time with interactive dashboard",
     "type": "library",
     "license": "MIT",
+    "version": "1.0.0",
+    "keywords": [
+        "laravel",
+        "api",
+        "profiler",
+        "performance",
+        "monitoring",
+        "observability",
+        "dashboard",
+        "queries",
+        "n+1",
+        "bottleneck"
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0",
+        "illuminate/database": "^11.0",
+        "illuminate/routing": "^11.0",
+        "illuminate/http": "^11.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0"
+    },
     "autoload": {
         "psr-4": {
             "ZeeshanTariq\\LaravelApiProfiler\\": "src/"
@@ -14,5 +37,7 @@
                 "ZeeshanTariq\\LaravelApiProfiler\\LaravelApiProfilerServiceProvider"
             ]
         }
-    }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

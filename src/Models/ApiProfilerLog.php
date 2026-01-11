@@ -22,6 +22,9 @@ class ApiProfilerLog extends Model
         'bottleneck',
         'timings',
         'n_plus_one',
+        'timeline',
+        'http_calls',
+        'queries_list',
     ];
 
     protected $casts = [
@@ -30,7 +33,42 @@ class ApiProfilerLog extends Model
         'slow' => 'boolean',
         'queries_list' => 'array',
         'http_calls' => 'array',
+        'timeline' => 'array',
     ];
+
+    public function getDbTimeMsAttribute()
+    {
+        return $this->timings['db'] ?? $this->db_ms ?? 0;
+    }
+
+    public function getHttpTimeMsAttribute()
+    {
+        return $this->timings['http'] ?? $this->http_ms ?? 0;
+    }
+
+    public function getMiddlewareTimeMsAttribute()
+    {
+        return $this->timings['middleware'] ?? 0;
+    }
+
+    public function getControllerTimeMsAttribute()
+    {
+        return $this->timings['controller'] ?? 0;
+    }
+
+    public function getQueriesListAttribute()
+    {
+        $value = $this->attributes['queries_list'] ?? null;
+        if ($value && is_string($value)) {
+            return json_decode($value, true) ?? [];
+        }
+        return $value ?? [];
+    }
+
+    public function getHttpCallsListAttribute()
+    {
+        return $this->http_calls ?? [];
+    }
 
     public static function routeStats()
     {

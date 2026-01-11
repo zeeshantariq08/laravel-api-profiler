@@ -3,38 +3,76 @@
 namespace ZeeshanTariq\LaravelApiProfiler\Middleware;
 
 use Closure;
+use Illuminate\Support\Str;
 use ZeeshanTariq\LaravelApiProfiler\Profiler\Profiler;
 use ZeeshanTariq\LaravelApiProfiler\Models\ApiProfilerLog;
-use Illuminate\Support\Str;
+use ZeeshanTariq\LaravelApiProfiler\Services\AlertEngine;
 
 class ApiProfilerMiddleware
 {
     public function handle($request, Closure $next)
     {
+        if (!config('api-profiler.enabled')) {
+            return $next($request);
+        }
+
         $startMiddleware = microtime(true);
 
-        // Start profiler
         Profiler::start($request->path(), $request->method());
 
-        // Proceed with request
         $response = $next($request);
 
         $endMiddleware = microtime(true);
 
-        // End profiler
         $profile = Profiler::end();
 
-        // Compute waterfall timings
-        $profile->timings = [
-            'middleware' => ($endMiddleware - $startMiddleware) * 1000,
-            'controller' => $response->headers->get('X-Controller-Time') ?? 0,
-            'db' => $profile->dbTime,
-            'http' => $profile->httpTime,
-            'response' => $profile->duration() - $profile->dbTime - $profile->httpTime,
+        if (!$profile) {
+            return $response;
+        }
+
+        $timeline = [];
+
+        $timeline[] = [
+            'type' => 'middleware',
+            'name' => 'Middleware',
+            'duration' => ($endMiddleware - $startMiddleware) * 1000,
         ];
 
-        // Save to DB
-        ApiProfilerLog::create([
+        $timeline[] = [
+            'type' => 'controller',
+            'name' => 'Controller',
+            'duration' => $response->headers->get('X-Controller-Time') ?? 0,
+        ];
+
+        $dbTimeline = [];
+        foreach ($profile->queriesList as $sql) {
+            $dbTimeline[] = [
+                'type' => 'db',
+                'name' => $sql,
+                'duration' => $profile->dbTime / max(1, count($profile->queriesList)), // approximate per-query
+            ];
+        }
+        $timeline = array_merge($timeline, $dbTimeline);
+
+        $httpTimeline = [];
+        if (!empty($profile->httpCallsList)) {
+            foreach ($profile->httpCallsList as $http) {
+                $httpTimeline[] = [
+                    'type' => 'http',
+                    'name' => $http['url'],
+                    'duration' => $http['duration_ms'],
+                ];
+            }
+        }
+        $timeline = array_merge($timeline, $httpTimeline);
+
+        $timeline[] = [
+            'type' => 'response',
+            'name' => 'Response',
+            'duration' => $profile->duration() - $profile->dbTime - $profile->httpTime,
+        ];
+
+        $log = ApiProfilerLog::create([
             'request_id' => (string) Str::uuid(),
             'method' => $profile->method,
             'url' => $profile->route,
@@ -46,10 +84,19 @@ class ApiProfilerMiddleware
             'memory_peak' => $profile->memory,
             'slow' => $profile->slow,
             'bottleneck' => $profile->bottleneck,
-            'timings' => $profile->timings,
-            'timeline' => json_encode($profile->timeline),
+            'timings' => [
+                'middleware' => ($endMiddleware - $startMiddleware) * 1000,
+                'controller' => $response->headers->get('X-Controller-Time') ?? 0,
+                'db' => $profile->dbTime,
+                'http' => $profile->httpTime,
+                'response' => $profile->duration() - $profile->dbTime - $profile->httpTime,
+            ],
+            'timeline' => json_encode($timeline),
             'n_plus_one' => $profile->nPlusOne,
+            'http_calls' => $profile->httpCallsList ?? [],
+            'queries_list' => $profile->queriesList ?? [],
         ]);
+        AlertEngine::process($log);
 
         return $response;
     }

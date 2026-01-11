@@ -17,6 +17,7 @@ class RequestProfile
     public bool $slow = false;
     public ?string $bottleneck = null;
     public array $queriesList = [];
+    public array $httpCallsList = [];
     public array $nPlusOne = [];
     public array $timeline = [];
 

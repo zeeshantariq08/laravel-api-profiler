@@ -8,35 +8,66 @@ use ZeeshanTariq\LaravelApiProfiler\Models\ApiProfilerLog;
 
 class AlertEngine
 {
-    public static function analyze(ApiProfilerLog $log)
+    public static function process(ApiProfilerLog $log): void
     {
-        $baseline = ApiProfilerBaseline::where('url', $log->url)->first();
-        if (! $baseline) return;
+        $baseline = ApiProfilerBaseline::firstOrCreate(
+            ['url' => $log->url],
+            [
+                'avg_ms' => $log->duration_ms,
+                'p95_ms' => $log->duration_ms,
+                'avg_db_ms' => $log->db_ms,
+                'avg_http_ms' => $log->http_ms,
+            ]
+        );
 
-        // Slow request
-        if ($log->duration_ms > $baseline->p95_ms * 1.5) {
-            self::create($log, 'slow', $log->duration_ms, $baseline->p95_ms);
+        $recentLogs = ApiProfilerLog::where('url', $log->url)
+            ->latest()
+            ->limit(config('api-profiler.baseline_sample_size'))
+            ->get();
+
+        if ($recentLogs->isNotEmpty()) {
+            $baseline->avg_ms = $recentLogs->avg('duration_ms') ?? $log->duration_ms;
+            $sortedDurations = $recentLogs->pluck('duration_ms')->filter()->sort()->values();
+            $p95Index = intval(0.95 * $sortedDurations->count());
+            $baseline->p95_ms = $sortedDurations->get($p95Index) ?? $log->duration_ms;
+            $baseline->avg_db_ms = $recentLogs->avg('db_ms') ?? $log->db_ms ?? 0;
+            $baseline->avg_http_ms = $recentLogs->avg('http_ms') ?? $log->http_ms ?? 0;
+        } else {
+            $baseline->avg_ms = $log->duration_ms;
+            $baseline->p95_ms = $log->duration_ms;
+            $baseline->avg_db_ms = $log->db_ms ?? 0;
+            $baseline->avg_http_ms = $log->http_ms ?? 0;
+        }
+        $baseline->save();
+
+        if ($log->duration_ms > $baseline->avg_ms * 1.5) {
+            ApiProfilerAlert::create([
+                'request_id' => $log->request_id,
+                'url' => $log->url,
+                'type' => 'slow_request',
+                'value' => $log->duration_ms,
+                'baseline' => $baseline->avg_ms,
+            ]);
         }
 
-        // DB spike
-        if ($log->db_time_ms > $baseline->avg_db_ms * 2) {
-            self::create($log, 'db_spike', $log->db_time_ms, $baseline->avg_db_ms);
+        if ($log->memory_peak > config('api-profiler.high_memory_bytes')) {
+            ApiProfilerAlert::create([
+                'request_id' => $log->request_id,
+                'url' => $log->url,
+                'type' => 'high_memory',
+                'value' => $log->memory_peak,
+                'baseline' => config('api-profiler.high_memory_bytes'),
+            ]);
         }
 
-        // HTTP spike
-        if ($log->http_time_ms > $baseline->avg_http_ms * 2) {
-            self::create($log, 'http_spike', $log->http_time_ms, $baseline->avg_http_ms);
+        if (!empty($log->n_plus_one)) {
+            ApiProfilerAlert::create([
+                'request_id' => $log->request_id,
+                'url' => $log->url,
+                'type' => 'n_plus_one',
+                'value' => count($log->n_plus_one),
+                'baseline' => config('api-profiler.n_plus_one_threshold'),
+            ]);
         }
-    }
-
-    protected static function create($log, $type, $value, $baseline)
-    {
-        ApiProfilerAlert::create([
-            'request_id' => $log->request_id,
-            'url' => $log->url,
-            'type' => $type,
-            'value' => $value,
-            'baseline' => $baseline,
-        ]);
     }
 }

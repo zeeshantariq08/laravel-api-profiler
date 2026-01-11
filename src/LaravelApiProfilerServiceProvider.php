@@ -40,9 +40,9 @@ class LaravelApiProfilerServiceProvider extends ServiceProvider
             $start = $event->request->__start ?? null;
 
             if ($start) {
-                Profiler::addHttp(
-                    (microtime(true) - $start) * 1000
-                );
+                $url = $event->request->url() ?? 'unknown';
+                $duration = (microtime(true) - $start) * 1000;
+                Profiler::addHttp($url, $duration);
             }
         });
 
@@ -54,6 +54,11 @@ class LaravelApiProfilerServiceProvider extends ServiceProvider
         app()->terminating(function () {
             Profiler::addMemory(memory_get_peak_usage(true));
         });
+
+        $this->mergeConfigFrom(__DIR__ . '/../config/api-profiler.php', 'api-profiler');
+        $this->publishes([
+            __DIR__ . '/../config/api-profiler.php' => config_path('api-profiler.php'),
+        ], 'config');
 
         /*
         |--------------------------------------------------------------------------
