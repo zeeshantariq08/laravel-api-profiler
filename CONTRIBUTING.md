@@ -51,7 +51,7 @@ Feature suggestions are welcome! Please open an issue with:
 
 ```bash
 # Clone the repository
-git clone https://github.com/zeeshantariq/laravel-api-profiler.git
+git clone https://github.com/zeeshantariq08/laravel-api-profiler.git
 
 # Install dependencies
 composer install

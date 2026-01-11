@@ -75,7 +75,7 @@ http://your-app.test/api-profiler/dashboard
 
 ### Configuration
 
-Publish the config file (optional):
+Publish the config file:
 
 ```bash
 php artisan vendor:publish --tag=config --provider="ZeeshanTariq\LaravelApiProfiler\LaravelApiProfilerServiceProvider"
