@@ -199,27 +199,6 @@ The profiler identifies the main performance bottleneck:
 Automatically detects when the same query is executed multiple times (threshold: 5+ times), suggesting potential N+1
 problems that can be solved with eager loading.
 
-## 🛠️ Troubleshooting
-
-### Dashboard shows no data
-
-1. Ensure the middleware is applied to your routes
-2. Check that `API_PROFILER_ENABLED=true` in your `.env`
-3. Make some API requests to generate data
-4. Verify migrations have run: `php artisan migrate:status`
-
-### Charts not displaying
-
-1. Ensure Chart.js is loaded (included in the layout)
-2. Check browser console for JavaScript errors
-3. Verify data exists in the database
-
-### Missing queries or HTTP calls
-
-- Old logs created before the `queries_list` column was added won't have query details
-- New requests will capture all data correctly
-- Run migrations to add missing columns: `php artisan migrate`
-
 ### Performance impact
 
 The profiler is designed to be lightweight:
