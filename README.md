@@ -2,7 +2,10 @@
 
 [![Latest Version](https://img.shields.io/packagist/v/zeeshantariq/laravel-api-profiler.svg?style=flat-square)](https://packagist.org/packages/zeeshantariq/laravel-api-profiler)
 [![Total Downloads](https://img.shields.io/packagist/dt/zeeshantariq/laravel-api-profiler.svg?style=flat-square)](https://packagist.org/packages/zeeshantariq/laravel-api-profiler)
-![Laravel](https://img.shields.io/badge/Laravel-11-red)![PHP](https://img.shields.io/badge/PHP-8.2+-blue)![License](https://img.shields.io/badge/license-MIT-green)![Status](https://img.shields.io/badge/status-production--ready-brightgreen)
+![Laravel](https://img.shields.io/badge/Laravel-11%2C12-red)
+![PHP](https://img.shields.io/badge/PHP-8.2+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-production--ready-brightgreen)
 
 **Production‑grade performance observability for Laravel APIs**
 
